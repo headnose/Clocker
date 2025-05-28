@@ -173,7 +173,8 @@ export function getDailyTotals(punches: Punch[]): { date: Date; hours: number }[
   // Group punches by day
   punches.forEach(punch => {
     const date = new Date(punch.timestamp);
-    const dayKey = date.toISOString().split('T')[0];
+    // Use local date components for the key
+    const dayKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
     
     if (!punchesByDay.has(dayKey)) {
       punchesByDay.set(dayKey, []);
@@ -182,10 +183,15 @@ export function getDailyTotals(punches: Punch[]): { date: Date; hours: number }[
   });
 
   // Calculate totals for each day
-  return Array.from(punchesByDay.entries()).map(([dayKey, dayPunches]) => ({
-    date: new Date(dayKey),
-    hours: calculateTotalHours(dayPunches)
-  })).sort((a, b) => b.date.getTime() - a.date.getTime()); // Sort by date descending
+  return Array.from(punchesByDay.entries()).map(([dayKey, dayPunches]) => {
+    // Parse the local date components from the key
+    const parts = dayKey.split('-').map(Number);
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    return {
+      date,
+      hours: calculateTotalHours(dayPunches)
+    };
+  }).sort((a, b) => b.date.getTime() - a.date.getTime()); // Sort by date descending
 }
 
 /**

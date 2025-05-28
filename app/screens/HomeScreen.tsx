@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   StyleSheet,
@@ -47,8 +48,14 @@ export default function HomeScreen() {
 
   useEffect(() => {
     // Load the initial state when component mounts
-    loadInitialState();
+    // loadInitialState(); // Remove this line
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadInitialState();
+    }, [])
+  );
 
   // Update hours worked every minute when clocked in
   useEffect(() => {

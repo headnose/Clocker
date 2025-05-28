@@ -1,6 +1,7 @@
+import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import * as MailComposer from "expo-mail-composer";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -28,9 +29,11 @@ export default function ReportScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [summaries, setSummaries] = useState<SummarySection[]>([]);
 
-  useEffect(() => {
-    loadPunchData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadPunchData();
+    }, [])
+  );
 
   const loadPunchData = async () => {
     try {

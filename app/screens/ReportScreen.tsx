@@ -4,15 +4,24 @@ import * as MailComposer from "expo-mail-composer";
 import React, { useCallback, useState } from "react";
 import {
   Alert,
+  Button,
   FlatList,
+  Modal,
   RefreshControl,
   SectionList,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { Punch, deletePunch, loadPunches } from "../../storage/punchStorage";
+import {
+  Punch,
+  deletePunch,
+  loadPunches,
+  resetAllData,
+  updatePunch,
+} from "../../storage/punchStorage";
 import {
   formatHours,
   getDailyTotals,
@@ -28,6 +37,10 @@ export default function ReportScreen() {
   const [punches, setPunches] = useState<Punch[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [summaries, setSummaries] = useState<SummarySection[]>([]);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [editingPunch, setEditingPunch] = useState<Punch | null>(null);
+  const [editedTime, setEditedTime] = useState("");
+  const [editedType, setEditedType] = useState<Punch["type"]>("in");
 
   useFocusEffect(
     useCallback(() => {
@@ -75,6 +88,42 @@ export default function ReportScreen() {
     setRefreshing(false);
   };
 
+  const handleUpdatePunch = async () => {
+    if (!editingPunch || !editedTime) return;
+
+    try {
+      // Basic validation for time format (HH:MM)
+      if (!/^\d{2}:\d{2}$/.test(editedTime)) {
+        Alert.alert("Error", "Invalid time format. Please use HH:MM.");
+        return;
+      }
+
+      const [hours, minutes] = editedTime.split(":").map(Number);
+      const originalDate = new Date(editingPunch.timestamp);
+      const updatedTimestamp = new Date(
+        originalDate.getFullYear(),
+        originalDate.getMonth(),
+        originalDate.getDate(),
+        hours,
+        minutes
+      ).toISOString();
+
+      const updatedPunchData: Punch = {
+        ...editingPunch,
+        timestamp: updatedTimestamp,
+        type: editedType,
+      };
+
+      await updatePunch(editingPunch.timestamp, updatedPunchData);
+      await loadPunchData();
+      setIsEditModalVisible(false);
+      setEditingPunch(null);
+      Alert.alert("Success", "Punch updated successfully");
+    } catch (error) {
+      Alert.alert("Error", "Failed to update punch");
+    }
+  };
+
   const handleDeletePunch = async (timestamp: string) => {
     try {
       await deletePunch(timestamp);
@@ -83,6 +132,29 @@ export default function ReportScreen() {
     } catch (error) {
       Alert.alert("Error", "Failed to delete punch");
     }
+  };
+
+  const handleReset = () => {
+    Alert.alert(
+      "Reset All Data",
+      "Are you sure you want to reset all clock data? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await resetAllData();
+              await loadPunchData();
+              Alert.alert("Success", "All data has been reset");
+            } catch (error) {
+              Alert.alert("Error", "Failed to reset data");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatDate = (date: Date, includeYear = false) => {
@@ -129,6 +201,17 @@ export default function ReportScreen() {
   const renderPunchItem = ({ item }: { item: Punch }) => (
     <TouchableOpacity
       style={styles.punchItem}
+      onPress={() => {
+        setEditingPunch(item);
+        const time = new Date(item.timestamp).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+        setEditedTime(time);
+        setEditedType(item.type);
+        setIsEditModalVisible(true);
+      }}
       onLongPress={() => {
         Alert.alert(
           "Delete Punch",
@@ -242,6 +325,71 @@ export default function ReportScreen() {
 
   return (
     <View style={styles.container}>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isEditModalVisible}
+        onRequestClose={() => {
+          setIsEditModalVisible(false);
+          setEditingPunch(null);
+        }}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalText}>Edit Punch Time (HH:MM)</Text>
+            <TextInput
+              style={styles.input}
+              onChangeText={setEditedTime}
+              value={editedTime}
+              placeholder="HH:MM"
+              keyboardType="numeric"
+            />
+            <View style={styles.typeSelectorContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.typeButton,
+                  editedType === "in" && styles.typeButtonSelected,
+                ]}
+                onPress={() => setEditedType("in")}
+              >
+                <Text
+                  style={[
+                    styles.typeButtonText,
+                    editedType === "in" && styles.typeButtonTextSelected,
+                  ]}
+                >
+                  IN
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.typeButton,
+                  editedType === "out" && styles.typeButtonSelected,
+                ]}
+                onPress={() => setEditedType("out")}
+              >
+                <Text
+                  style={[
+                    styles.typeButtonText,
+                    editedType === "out" && styles.typeButtonTextSelected,
+                  ]}
+                >
+                  OUT
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Button title="Save" onPress={handleUpdatePunch} />
+            <Button
+              title="Cancel"
+              onPress={() => {
+                setIsEditModalVisible(false);
+                setEditingPunch(null);
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
+
       <TouchableOpacity style={styles.emailButton} onPress={sendEmail}>
         <Text style={styles.emailButtonText}>Email Report</Text>
       </TouchableOpacity>
@@ -276,6 +424,9 @@ export default function ReportScreen() {
           <Text style={styles.emptyText}>No punch history available</Text>
         }
       />
+      <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
+        <Text style={styles.resetButtonText}>Reset All Data</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -361,5 +512,75 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 32,
     padding: 16,
+  },
+  resetButton: {
+    backgroundColor: "#ff4444",
+    margin: 16,
+    borderRadius: 8,
+    padding: 16,
+    alignItems: "center",
+  },
+  resetButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 22,
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 35,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalText: {
+    marginBottom: 15,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  input: {
+    height: 40,
+    borderColor: "gray",
+    borderWidth: 1,
+    marginBottom: 20,
+    paddingHorizontal: 10,
+    width: 200,
+    textAlign: "center",
+  },
+  typeSelectorContainer: {
+    flexDirection: "row",
+    marginBottom: 20,
+  },
+  typeButton: {
+    flex: 1,
+    padding: 10,
+    alignItems: "center",
+    borderColor: "#ccc",
+    borderWidth: 1,
+    marginHorizontal: 5,
+    borderRadius: 5,
+  },
+  typeButtonSelected: {
+    backgroundColor: "#007bff",
+  },
+  typeButtonText: {
+    color: "#007bff",
+  },
+  typeButtonTextSelected: {
+    color: "#fff",
   },
 });

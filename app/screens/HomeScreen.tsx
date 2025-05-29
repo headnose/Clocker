@@ -12,7 +12,6 @@ import {
   Punch,
   loadClockState,
   loadPunches,
-  resetAllData,
   saveClockState,
   savePunch,
 } from "../../storage/punchStorage";
@@ -43,6 +42,7 @@ export default function HomeScreen() {
   const [isClockedIn, setIsClockedIn] = useState<boolean>(false);
   const [hoursWorked, setHoursWorked] = useState<number>(0);
   const [punches, setPunches] = useState<Punch[]>([]);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const colorScheme = useColorScheme();
   const theme = colors[colorScheme === "dark" ? "dark" : "light"];
 
@@ -56,6 +56,14 @@ export default function HomeScreen() {
       loadInitialState();
     }, [])
   );
+
+  // Update current time every second
+  useEffect(() => {
+    const timerId = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timerId); // Cleanup interval on component unmount
+  }, []);
 
   // Update hours worked every minute when clocked in
   useEffect(() => {
@@ -106,33 +114,15 @@ export default function HomeScreen() {
     }
   };
 
-  const handleReset = () => {
-    Alert.alert(
-      "Reset All Data",
-      "Are you sure you want to reset all clock data? This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await resetAllData();
-              setIsClockedIn(false);
-              setPunches([]);
-              setHoursWorked(0);
-              Alert.alert("Success", "All data has been reset");
-            } catch (error) {
-              Alert.alert("Error", "Failed to reset data");
-            }
-          },
-        },
-      ]
-    );
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Text style={[styles.clockText, { color: theme.text }]}>
+        {currentTime.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })}
+      </Text>
       <TouchableOpacity
         style={[
           styles.button,
@@ -153,14 +143,6 @@ export default function HomeScreen() {
       <Text style={[styles.hours, { color: theme.text }]}>
         Hours Today: {formatHours(hoursWorked)}
       </Text>
-      <TouchableOpacity
-        style={[styles.resetButton, { borderColor: theme.clockOut }]}
-        onPress={handleReset}
-      >
-        <Text style={[styles.resetButtonText, { color: theme.clockOut }]}>
-          Reset All Data
-        </Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -197,15 +179,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  resetButton: {
-    marginTop: 40,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderRadius: 8,
-  },
-  resetButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
+  clockText: {
+    fontSize: 48,
+    fontWeight: "bold",
+    marginBottom: 20,
   },
 });

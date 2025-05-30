@@ -39,7 +39,9 @@ export default function ReportScreen() {
   const [summaries, setSummaries] = useState<SummarySection[]>([]);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingPunch, setEditingPunch] = useState<Punch | null>(null);
-  const [editedTime, setEditedTime] = useState("");
+  const [editedDateString, setEditedDateString] = useState("");
+  const [editedHour, setEditedHour] = useState("");
+  const [editedMinute, setEditedMinute] = useState("");
   const [editedType, setEditedType] = useState<Punch["type"]>("in");
 
   useFocusEffect(
@@ -89,21 +91,51 @@ export default function ReportScreen() {
   };
 
   const handleUpdatePunch = async () => {
-    if (!editingPunch || !editedTime) return;
+    if (!editingPunch || !editedDateString || !editedHour || !editedMinute)
+      return;
 
     try {
-      // Basic validation for time format (HH:MM)
-      if (!/^\d{2}:\d{2}$/.test(editedTime)) {
-        Alert.alert("Error", "Invalid time format. Please use HH:MM.");
+      // Basic validation for date format (YYYY-MM-DD)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(editedDateString)) {
+        Alert.alert("Error", "Invalid date format. Please use YYYY-MM-DD.");
         return;
       }
 
-      const [hours, minutes] = editedTime.split(":").map(Number);
-      const originalDate = new Date(editingPunch.timestamp);
+      const year = parseInt(editedDateString.substring(0, 4), 10);
+      const month = parseInt(editedDateString.substring(5, 7), 10);
+      const day = parseInt(editedDateString.substring(8, 10), 10);
+
+      const hours = parseInt(editedHour, 10);
+      const minutes = parseInt(editedMinute, 10);
+
+      if (
+        isNaN(year) ||
+        isNaN(month) ||
+        isNaN(day) ||
+        isNaN(hours) ||
+        isNaN(minutes)
+      ) {
+        Alert.alert("Error", "Date and time components must be numbers.");
+        return;
+      }
+
+      // Validate date components
+      if (month < 1 || month > 12 || day < 1 || day > 31) {
+        // Basic validation
+        Alert.alert("Error", "Invalid date components.");
+        return;
+      }
+
+      // Validate time components
+      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        Alert.alert("Error", "Invalid time components. HH (0-23), MM (0-59).");
+        return;
+      }
+
       const updatedTimestamp = new Date(
-        originalDate.getFullYear(),
-        originalDate.getMonth(),
-        originalDate.getDate(),
+        year,
+        month - 1, // Month is 0-indexed in JavaScript Date
+        day,
         hours,
         minutes
       ).toISOString();
@@ -203,12 +235,16 @@ export default function ReportScreen() {
       style={styles.punchItem}
       onPress={() => {
         setEditingPunch(item);
-        const time = new Date(item.timestamp).toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        });
-        setEditedTime(time);
+        const itemDate = new Date(item.timestamp);
+        const dateStr = `${itemDate.getFullYear()}-${String(
+          itemDate.getMonth() + 1
+        ).padStart(2, "0")}-${String(itemDate.getDate()).padStart(2, "0")}`;
+        const hourStr = String(itemDate.getHours()).padStart(2, "0");
+        const minuteStr = String(itemDate.getMinutes()).padStart(2, "0");
+
+        setEditedDateString(dateStr);
+        setEditedHour(hourStr);
+        setEditedMinute(minuteStr);
         setEditedType(item.type);
         setIsEditModalVisible(true);
       }}
@@ -336,14 +372,34 @@ export default function ReportScreen() {
       >
         <View style={styles.centeredView}>
           <View style={styles.modalView}>
-            <Text style={styles.modalText}>Edit Punch Time (HH:MM)</Text>
+            <Text style={styles.modalText}>Edit Punch Date & Time</Text>
             <TextInput
               style={styles.input}
-              onChangeText={setEditedTime}
-              value={editedTime}
-              placeholder="HH:MM"
+              onChangeText={setEditedDateString}
+              value={editedDateString}
+              placeholder="YYYY-MM-DD"
               keyboardType="numeric"
             />
+            <Text style={styles.modalText}>Edit Punch Time</Text>
+            <View style={styles.timeInputContainer}>
+              <TextInput
+                style={[styles.input, styles.timeInput]}
+                onChangeText={setEditedHour}
+                value={editedHour}
+                placeholder="HH"
+                keyboardType="number-pad"
+                maxLength={2}
+              />
+              <Text style={styles.timeSeparator}>:</Text>
+              <TextInput
+                style={[styles.input, styles.timeInput]}
+                onChangeText={setEditedMinute}
+                value={editedMinute}
+                placeholder="MM"
+                keyboardType="number-pad"
+                maxLength={2}
+              />
+            </View>
             <View style={styles.typeSelectorContainer}>
               <TouchableOpacity
                 style={[
@@ -582,5 +638,20 @@ const styles = StyleSheet.create({
   },
   typeButtonTextSelected: {
     color: "#fff",
+  },
+  timeInputContainer: {
+    flexDirection: "row",
+    marginBottom: 20,
+  },
+  timeInput: {
+    flex: 1,
+    padding: 10,
+    borderColor: "#ccc",
+    borderWidth: 1,
+    marginHorizontal: 5,
+    borderRadius: 5,
+  },
+  timeSeparator: {
+    padding: 10,
   },
 });

@@ -2,6 +2,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -116,6 +117,10 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Image
+        source={require("../../assets/images/time-clock-icon.png")}
+        style={styles.clockImage}
+      />
       <Text style={[styles.clockText, { color: theme.text }]}>
         {currentTime.toLocaleTimeString([], {
           hour: "2-digit",
@@ -182,6 +187,11 @@ const styles = StyleSheet.create({
   clockText: {
     fontSize: 48,
     fontWeight: "bold",
+    marginBottom: 20,
+  },
+  clockImage: {
+    width: 300,
+    height: 300,
     marginBottom: 20,
   },
 });

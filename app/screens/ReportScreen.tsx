@@ -6,7 +6,9 @@ import {
   Alert,
   Button,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   SectionList,
   StyleSheet,
@@ -39,7 +41,9 @@ export default function ReportScreen() {
   const [summaries, setSummaries] = useState<SummarySection[]>([]);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingPunch, setEditingPunch] = useState<Punch | null>(null);
-  const [editedDateString, setEditedDateString] = useState("");
+  const [editedYear, setEditedYear] = useState("");
+  const [editedMonth, setEditedMonth] = useState("");
+  const [editedDay, setEditedDay] = useState("");
   const [editedHour, setEditedHour] = useState("");
   const [editedMinute, setEditedMinute] = useState("");
   const [editedType, setEditedType] = useState<Punch["type"]>("in");
@@ -91,20 +95,20 @@ export default function ReportScreen() {
   };
 
   const handleUpdatePunch = async () => {
-    if (!editingPunch || !editedDateString || !editedHour || !editedMinute)
+    if (
+      !editingPunch ||
+      !editedYear ||
+      !editedMonth ||
+      !editedDay ||
+      !editedHour ||
+      !editedMinute
+    )
       return;
 
     try {
-      // Basic validation for date format (YYYY-MM-DD)
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(editedDateString)) {
-        Alert.alert("Error", "Invalid date format. Please use YYYY-MM-DD.");
-        return;
-      }
-
-      const year = parseInt(editedDateString.substring(0, 4), 10);
-      const month = parseInt(editedDateString.substring(5, 7), 10);
-      const day = parseInt(editedDateString.substring(8, 10), 10);
-
+      const year = parseInt(editedYear, 10);
+      const month = parseInt(editedMonth, 10);
+      const day = parseInt(editedDay, 10);
       const hours = parseInt(editedHour, 10);
       const minutes = parseInt(editedMinute, 10);
 
@@ -115,14 +119,24 @@ export default function ReportScreen() {
         isNaN(hours) ||
         isNaN(minutes)
       ) {
-        Alert.alert("Error", "Date and time components must be numbers.");
+        Alert.alert("Error", "Date and time components must be valid numbers.");
         return;
       }
 
       // Validate date components
-      if (month < 1 || month > 12 || day < 1 || day > 31) {
-        // Basic validation
-        Alert.alert("Error", "Invalid date components.");
+      // Basic validation, can be improved with Date object checks for day based on month/year
+      if (
+        month < 1 ||
+        month > 12 ||
+        day < 1 ||
+        day > 31 ||
+        year < 1900 ||
+        year > 2100
+      ) {
+        Alert.alert(
+          "Error",
+          "Invalid date components. YYYY (1900-2100), MM (1-12), DD (1-31)."
+        );
         return;
       }
 
@@ -236,13 +250,16 @@ export default function ReportScreen() {
       onPress={() => {
         setEditingPunch(item);
         const itemDate = new Date(item.timestamp);
-        const dateStr = `${itemDate.getFullYear()}-${String(
-          itemDate.getMonth() + 1
-        ).padStart(2, "0")}-${String(itemDate.getDate()).padStart(2, "0")}`;
+
+        const yearStr = String(itemDate.getFullYear());
+        const monthStr = String(itemDate.getMonth() + 1).padStart(2, "0");
+        const dayStr = String(itemDate.getDate()).padStart(2, "0");
         const hourStr = String(itemDate.getHours()).padStart(2, "0");
         const minuteStr = String(itemDate.getMinutes()).padStart(2, "0");
 
-        setEditedDateString(dateStr);
+        setEditedYear(yearStr);
+        setEditedMonth(monthStr);
+        setEditedDay(dayStr);
         setEditedHour(hourStr);
         setEditedMinute(minuteStr);
         setEditedType(item.type);
@@ -370,80 +387,109 @@ export default function ReportScreen() {
           setEditingPunch(null);
         }}
       >
-        <View style={styles.centeredView}>
-          <View style={styles.modalView}>
-            <Text style={styles.modalText}>Edit Punch Date & Time</Text>
-            <TextInput
-              style={styles.input}
-              onChangeText={setEditedDateString}
-              value={editedDateString}
-              placeholder="YYYY-MM-DD"
-              keyboardType="numeric"
-            />
-            <Text style={styles.modalText}>Edit Punch Time</Text>
-            <View style={styles.timeInputContainer}>
-              <TextInput
-                style={[styles.input, styles.timeInput]}
-                onChangeText={setEditedHour}
-                value={editedHour}
-                placeholder="HH"
-                keyboardType="number-pad"
-                maxLength={2}
-              />
-              <Text style={styles.timeSeparator}>:</Text>
-              <TextInput
-                style={[styles.input, styles.timeInput]}
-                onChangeText={setEditedMinute}
-                value={editedMinute}
-                placeholder="MM"
-                keyboardType="number-pad"
-                maxLength={2}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.keyboardAvoidingView}
+        >
+          <View style={styles.centeredView}>
+            <View style={styles.modalView}>
+              <Text style={styles.modalText}>Edit Punch Date & Time</Text>
+
+              <Text style={styles.modalLabel}>Date (YYYY-MM-DD)</Text>
+              <View style={styles.dateInputContainer}>
+                <TextInput
+                  style={[styles.input, styles.dateInput, styles.yearInput]}
+                  onChangeText={setEditedYear}
+                  value={editedYear}
+                  placeholder="YYYY"
+                  keyboardType="number-pad"
+                  maxLength={4}
+                />
+                <Text style={styles.dateSeparator}>-</Text>
+                <TextInput
+                  style={[styles.input, styles.dateInput, styles.monthDayInput]}
+                  onChangeText={setEditedMonth}
+                  value={editedMonth}
+                  placeholder="MM"
+                  keyboardType="number-pad"
+                  maxLength={2}
+                />
+                <Text style={styles.dateSeparator}>-</Text>
+                <TextInput
+                  style={[styles.input, styles.dateInput, styles.monthDayInput]}
+                  onChangeText={setEditedDay}
+                  value={editedDay}
+                  placeholder="DD"
+                  keyboardType="number-pad"
+                  maxLength={2}
+                />
+              </View>
+
+              <Text style={styles.modalLabel}>Time (HH:MM)</Text>
+              <View style={styles.timeInputContainer}>
+                <TextInput
+                  style={[styles.input, styles.timeInput]}
+                  onChangeText={setEditedHour}
+                  value={editedHour}
+                  placeholder="HH"
+                  keyboardType="number-pad"
+                  maxLength={2}
+                />
+                <Text style={styles.timeSeparator}>:</Text>
+                <TextInput
+                  style={[styles.input, styles.timeInput]}
+                  onChangeText={setEditedMinute}
+                  value={editedMinute}
+                  placeholder="MM"
+                  keyboardType="number-pad"
+                  maxLength={2}
+                />
+              </View>
+              <View style={styles.typeSelectorContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.typeButton,
+                    editedType === "in" && styles.typeButtonSelected,
+                  ]}
+                  onPress={() => setEditedType("in")}
+                >
+                  <Text
+                    style={[
+                      styles.typeButtonText,
+                      editedType === "in" && styles.typeButtonTextSelected,
+                    ]}
+                  >
+                    IN
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.typeButton,
+                    editedType === "out" && styles.typeButtonSelected,
+                  ]}
+                  onPress={() => setEditedType("out")}
+                >
+                  <Text
+                    style={[
+                      styles.typeButtonText,
+                      editedType === "out" && styles.typeButtonTextSelected,
+                    ]}
+                  >
+                    OUT
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <Button title="Save" onPress={handleUpdatePunch} />
+              <Button
+                title="Cancel"
+                onPress={() => {
+                  setIsEditModalVisible(false);
+                  setEditingPunch(null);
+                }}
               />
             </View>
-            <View style={styles.typeSelectorContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.typeButton,
-                  editedType === "in" && styles.typeButtonSelected,
-                ]}
-                onPress={() => setEditedType("in")}
-              >
-                <Text
-                  style={[
-                    styles.typeButtonText,
-                    editedType === "in" && styles.typeButtonTextSelected,
-                  ]}
-                >
-                  IN
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.typeButton,
-                  editedType === "out" && styles.typeButtonSelected,
-                ]}
-                onPress={() => setEditedType("out")}
-              >
-                <Text
-                  style={[
-                    styles.typeButtonText,
-                    editedType === "out" && styles.typeButtonTextSelected,
-                  ]}
-                >
-                  OUT
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <Button title="Save" onPress={handleUpdatePunch} />
-            <Button
-              title="Cancel"
-              onPress={() => {
-                setIsEditModalVisible(false);
-                setEditingPunch(null);
-              }}
-            />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <TouchableOpacity style={styles.emailButton} onPress={sendEmail}>
@@ -491,6 +537,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   listHeader: {
     backgroundColor: "#f8f9fa",
@@ -653,5 +702,31 @@ const styles = StyleSheet.create({
   },
   timeSeparator: {
     padding: 10,
+  },
+  dateInputContainer: {
+    flexDirection: "row",
+    marginBottom: 20,
+  },
+  dateInput: {
+    flex: 1,
+    padding: 10,
+    borderColor: "#ccc",
+    borderWidth: 1,
+    marginHorizontal: 5,
+    borderRadius: 5,
+  },
+  yearInput: {
+    width: 80,
+  },
+  monthDayInput: {
+    width: 40,
+  },
+  dateSeparator: {
+    padding: 10,
+  },
+  modalLabel: {
+    marginBottom: 10,
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

@@ -5,49 +5,64 @@ import { Punch } from '../storage/punchStorage';
  * @param punches Array of punch records with timestamps
  * @returns Total hours worked today as a number with 2 decimal places
  */
-export function calculateHoursWorkedToday(punches: Punch[]): number {
-  if (!punches || punches.length === 0) return 0;
+export function calculateHoursWorkedToday(allPunches: Punch[]): number {
+  if (!allPunches || allPunches.length === 0) return 0;
 
-  // Get start of today
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  let totalHoursToday = 0;
+  const todayStart = getStartOfDay(new Date());
+  const todayEnd = getEndOfDay(new Date());
 
-  // Filter punches to only include today's punches
-  const todaysPunches = punches.filter(punch => {
-    const punchDate = new Date(punch.timestamp);
-    return punchDate >= today;
-  });
-
-  if (todaysPunches.length === 0) return 0;
-
-  // Sort punches by timestamp
-  const sortedPunches = [...todaysPunches].sort((a, b) => 
-    new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  const sortedPunches = [...allPunches].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
-  let totalMilliseconds = 0;
-  let lastInPunch: Date | null = null;
+  let lastInPunch: Punch | null = null;
 
-  // Calculate total time
-  for (const punch of sortedPunches) {
-    const punchTime = new Date(punch.timestamp);
+  for (const currentPunch of sortedPunches) {
+    if (currentPunch.type === 'in') {
+      // If there was a previous 'in' punch without an 'out' (dangling punch),
+      // we effectively overwrite it. The logic below handles the LATEST 'in' punch correctly.
+      lastInPunch = currentPunch;
+    } else if (currentPunch.type === 'out' && lastInPunch) {
+      const tIn = new Date(lastInPunch.timestamp);
+      const tOut = new Date(currentPunch.timestamp);
 
-    if (punch.type === 'in') {
-      lastInPunch = punchTime;
-    } else if (punch.type === 'out' && lastInPunch) {
-      // Calculate duration between in and out punch
-      totalMilliseconds += punchTime.getTime() - lastInPunch.getTime();
-      lastInPunch = null;
+      if (tOut <= tIn) { // Skip invalid or zero-duration pairs
+        lastInPunch = null;
+        continue;
+      }
+
+      const sessionStart = tIn;
+      const sessionEnd = tOut;
+
+      const effectiveStart = sessionStart < todayStart ? todayStart : sessionStart;
+      const effectiveEnd = sessionEnd > todayEnd ? todayEnd : sessionEnd;
+
+      if (effectiveStart < effectiveEnd) { 
+        totalHoursToday += calculateHoursBetween(effectiveStart, effectiveEnd);
+      }
+      lastInPunch = null; // This session is now closed
     }
   }
 
-  // If there's an unclosed "in" punch, calculate time until now
+  // Handle a currently active session (a final 'in' punch without a corresponding 'out')
   if (lastInPunch) {
-    totalMilliseconds += new Date().getTime() - lastInPunch.getTime();
+    const tIn = new Date(lastInPunch.timestamp);
+    const tNow = new Date();
+
+    if (tNow > tIn) { 
+      const effectiveStart = tIn < todayStart ? todayStart : tIn;
+      // For an active session, effectiveEnd is 'now' unless 'now' is past todayEnd, then it's todayEnd.
+      // However, we only care about the portion *up to now* that falls within today.
+      const capAtNow = tNow > todayEnd ? todayEnd : tNow; // Don't calculate beyond 'now' or 'todayEnd'
+
+      if (effectiveStart < capAtNow) { // ensure there is a valid interval within today up to now
+        totalHoursToday += calculateHoursBetween(effectiveStart, capAtNow);
+      }
+    }
   }
 
-  // Convert milliseconds to hours and round to 2 decimal places
-  return Number((totalMilliseconds / (1000 * 60 * 60)).toFixed(2));
+  return Number(totalHoursToday.toFixed(2));
 }
 
 /**
@@ -164,34 +179,127 @@ export function calculateTotalHours(punches: Punch[]): number {
 
 /**
  * Groups punches by day and calculates daily totals
+ * Accurately splits hours for shifts that cross midnight.
  */
-export function getDailyTotals(punches: Punch[]): { date: Date; hours: number }[] {
-  if (!punches || punches.length === 0) return [];
+export function getDailyTotals(allPunches: Punch[]): { date: Date; hours: number }[] {
+  if (!allPunches || allPunches.length === 0) return [];
 
-  const punchesByDay = new Map<string, Punch[]>();
+  const dailyHoursMap = new Map<string, number>(); // Key: "YYYY-MM-DD", Value: hours
 
-  // Group punches by day
-  punches.forEach(punch => {
-    const date = new Date(punch.timestamp);
-    // Use local date components for the key
-    const dayKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-    
-    if (!punchesByDay.has(dayKey)) {
-      punchesByDay.set(dayKey, []);
+  // Sort all punches chronologically (oldest first)
+  const sortedPunches = [...allPunches].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  let lastInPunch: Punch | null = null;
+
+  for (const currentPunch of sortedPunches) {
+    if (currentPunch.type === 'in') {
+      // If there was a previous 'in' punch without an 'out' (dangling punch),
+      // we will effectively ignore it here as a new 'in' punch starts a new session.
+      // More sophisticated handling for multiple incomplete 'in' punches could be added if needed.
+      lastInPunch = currentPunch;
+    } else if (currentPunch.type === 'out' && lastInPunch) {
+      const tIn = new Date(lastInPunch.timestamp);
+      const tOut = new Date(currentPunch.timestamp);
+
+      // Ensure tOut is after tIn, otherwise skip this pair (data integrity issue)
+      if (tOut <= tIn) {
+        lastInPunch = null; // Reset to avoid issues with malformed data
+        continue;
+      }
+
+      let currentSegmentStart = new Date(tIn);
+
+      while (currentSegmentStart < tOut) {
+        const dayKey = `${currentSegmentStart.getFullYear()}-${String(currentSegmentStart.getMonth() + 1).padStart(2, '0')}-${String(currentSegmentStart.getDate()).padStart(2, '0')}`;
+        
+        const endOfCurrentDay = getEndOfDay(new Date(currentSegmentStart));
+        const segmentEnd = tOut < endOfCurrentDay ? new Date(tOut) : endOfCurrentDay;
+
+        // Ensure segmentEnd is not before currentSegmentStart (can happen with tiny fractions of a second or bad data)
+        if (segmentEnd > currentSegmentStart) {
+            const hoursThisSegment = calculateHoursBetween(currentSegmentStart, segmentEnd);
+            dailyHoursMap.set(dayKey, (dailyHoursMap.get(dayKey) || 0) + hoursThisSegment);
+        }
+        
+        const nextDayStart = getStartOfDay(new Date(currentSegmentStart));
+        nextDayStart.setDate(nextDayStart.getDate() + 1);
+        
+        // Break if nextDayStart is already past tOut to prevent infinite loops on same-day segments ending at midnight
+        if (nextDayStart > tOut && isSameDay(currentSegmentStart.toISOString(), tOut.toISOString()) ){
+            if(tOut.getHours() === 0 && tOut.getMinutes() === 0 && tOut.getSeconds() === 0 && tOut.getMilliseconds() === 0 && !isSameDay(tIn.toISOString(), tOut.toISOString())){
+                // If tOut is exactly midnight and it's a different day than tIn, the loop for the previous day already handled up to its EOD.
+                // We need to ensure the new day (tOut's day) gets its 0 hours if no work was done on it.
+                 const tOutDayKey = `${tOut.getFullYear()}-${String(tOut.getMonth() + 1).padStart(2, '0')}-${String(tOut.getDate()).padStart(2, '0')}`;
+                 if (!dailyHoursMap.has(tOutDayKey)) {
+                    dailyHoursMap.set(tOutDayKey, 0);
+                 }
+            }
+            break;
+        }
+        currentSegmentStart = nextDayStart;
+      }
+      lastInPunch = null; 
     }
-    punchesByDay.get(dayKey)!.push(punch);
-  });
+  }
+  
+  // Handle a final dangling 'in' punch (currently clocked in)
+  if (lastInPunch) {
+      const tIn = new Date(lastInPunch.timestamp);
+      const tNow = new Date(); 
 
-  // Calculate totals for each day
-  return Array.from(punchesByDay.entries()).map(([dayKey, dayPunches]) => {
-    // Parse the local date components from the key
-    const parts = dayKey.split('-').map(Number);
-    const date = new Date(parts[0], parts[1] - 1, parts[2]);
-    return {
-      date,
-      hours: calculateTotalHours(dayPunches)
-    };
-  }).sort((a, b) => b.date.getTime() - a.date.getTime()); // Sort by date descending
+      if (tNow > tIn) { // Ensure current time is after the last clock-in
+        let currentSegmentStart = new Date(tIn);
+        while (currentSegmentStart < tNow) {
+            const dayKey = `${currentSegmentStart.getFullYear()}-${String(currentSegmentStart.getMonth() + 1).padStart(2, '0')}-${String(currentSegmentStart.getDate()).padStart(2, '0')}`;
+            const endOfCurrentDay = getEndOfDay(new Date(currentSegmentStart));
+            const segmentEnd = tNow < endOfCurrentDay ? new Date(tNow) : endOfCurrentDay;
+
+            if (segmentEnd > currentSegmentStart) {
+                const hoursThisSegment = calculateHoursBetween(currentSegmentStart, segmentEnd);
+                dailyHoursMap.set(dayKey, (dailyHoursMap.get(dayKey) || 0) + hoursThisSegment);
+            }
+
+            const nextDayStart = getStartOfDay(new Date(currentSegmentStart));
+            nextDayStart.setDate(nextDayStart.getDate() + 1);
+
+            if (nextDayStart > tNow && isSameDay(currentSegmentStart.toISOString(), tNow.toISOString())){
+                 break;
+            }
+            currentSegmentStart = nextDayStart;
+        }
+      }
+  }
+
+  // Convert map to array, ensure all days within the range of punches are present (even with 0 hours), and sort
+  if (sortedPunches.length > 0 && dailyHoursMap.size > 0) {
+    const firstPunchDate = getStartOfDay(new Date(sortedPunches[0].timestamp));
+    const lastPunchDate = getStartOfDay(new Date(sortedPunches[sortedPunches.length - 1].timestamp));
+    
+    // Ensure all days from the first punch to the last punch (or today if still clocked in) are in the map
+    let currentDate = new Date(firstPunchDate);
+    const endDateLimit = lastInPunch ? getStartOfDay(new Date()) : lastPunchDate;
+
+    while (currentDate <= endDateLimit) {
+      const dayKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+      if (!dailyHoursMap.has(dayKey)) {
+        dailyHoursMap.set(dayKey, 0);
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+  }
+
+
+  return Array.from(dailyHoursMap.entries())
+    .map(([dayKey, hours]) => {
+      const parts = dayKey.split('-').map(Number);
+      return {
+        date: new Date(parts[0], parts[1] - 1, parts[2]),
+        hours: Number(hours.toFixed(2)),
+      };
+    })
+    .sort((a, b) => b.date.getTime() - a.date.getTime());
 }
 
 /**

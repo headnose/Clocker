@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   RefreshControl,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -391,104 +392,117 @@ export default function ReportScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.keyboardAvoidingView}
         >
-          <View style={styles.centeredView}>
-            <View style={styles.modalView}>
-              <Text style={styles.modalText}>Edit Punch Date & Time</Text>
+          <ScrollView
+            contentContainerStyle={styles.modalScrollContentContainer}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.centeredView}>
+              <View style={styles.modalView}>
+                <Text style={styles.modalText}>Edit Punch Date & Time</Text>
 
-              <Text style={styles.modalLabel}>Date (YYYY-MM-DD)</Text>
-              <View style={styles.dateInputContainer}>
-                <TextInput
-                  style={[styles.input, styles.dateInput, styles.yearInput]}
-                  onChangeText={setEditedYear}
-                  value={editedYear}
-                  placeholder="YYYY"
-                  keyboardType="number-pad"
-                  maxLength={4}
-                />
-                <Text style={styles.dateSeparator}>-</Text>
-                <TextInput
-                  style={[styles.input, styles.dateInput, styles.monthDayInput]}
-                  onChangeText={setEditedMonth}
-                  value={editedMonth}
-                  placeholder="MM"
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
-                <Text style={styles.dateSeparator}>-</Text>
-                <TextInput
-                  style={[styles.input, styles.dateInput, styles.monthDayInput]}
-                  onChangeText={setEditedDay}
-                  value={editedDay}
-                  placeholder="DD"
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
-              </View>
+                <Text style={styles.modalLabel}>Date (YYYY-MM-DD)</Text>
+                <View style={styles.dateInputContainer}>
+                  <TextInput
+                    style={[styles.input, styles.dateInput, styles.yearInput]}
+                    onChangeText={setEditedYear}
+                    value={editedYear}
+                    placeholder="YYYY"
+                    keyboardType="number-pad"
+                    maxLength={4}
+                  />
+                  <Text style={styles.dateSeparator}>-</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      styles.dateInput,
+                      styles.monthDayInput,
+                    ]}
+                    onChangeText={setEditedMonth}
+                    value={editedMonth}
+                    placeholder="MM"
+                    keyboardType="number-pad"
+                    maxLength={2}
+                  />
+                  <Text style={styles.dateSeparator}>-</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      styles.dateInput,
+                      styles.monthDayInput,
+                    ]}
+                    onChangeText={setEditedDay}
+                    value={editedDay}
+                    placeholder="DD"
+                    keyboardType="number-pad"
+                    maxLength={2}
+                  />
+                </View>
 
-              <Text style={styles.modalLabel}>Time (HH:MM)</Text>
-              <View style={styles.timeInputContainer}>
-                <TextInput
-                  style={[styles.input, styles.timeInput]}
-                  onChangeText={setEditedHour}
-                  value={editedHour}
-                  placeholder="HH"
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
-                <Text style={styles.timeSeparator}>:</Text>
-                <TextInput
-                  style={[styles.input, styles.timeInput]}
-                  onChangeText={setEditedMinute}
-                  value={editedMinute}
-                  placeholder="MM"
-                  keyboardType="number-pad"
-                  maxLength={2}
+                <Text style={styles.modalLabel}>Time (HH:MM)</Text>
+                <View style={styles.timeInputContainer}>
+                  <TextInput
+                    style={[styles.input, styles.timeInput]}
+                    onChangeText={setEditedHour}
+                    value={editedHour}
+                    placeholder="HH"
+                    keyboardType="number-pad"
+                    maxLength={2}
+                  />
+                  <Text style={styles.timeSeparator}>:</Text>
+                  <TextInput
+                    style={[styles.input, styles.timeInput]}
+                    onChangeText={setEditedMinute}
+                    value={editedMinute}
+                    placeholder="MM"
+                    keyboardType="number-pad"
+                    maxLength={2}
+                  />
+                </View>
+                <View style={styles.typeSelectorContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      editedType === "in" && styles.typeButtonSelected,
+                    ]}
+                    onPress={() => setEditedType("in")}
+                  >
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        editedType === "in" && styles.typeButtonTextSelected,
+                      ]}
+                    >
+                      IN
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      editedType === "out" && styles.typeButtonSelected,
+                    ]}
+                    onPress={() => setEditedType("out")}
+                  >
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        editedType === "out" && styles.typeButtonTextSelected,
+                      ]}
+                    >
+                      OUT
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Button title="Save" onPress={handleUpdatePunch} />
+                <Button
+                  title="Cancel"
+                  onPress={() => {
+                    setIsEditModalVisible(false);
+                    setEditingPunch(null);
+                  }}
                 />
               </View>
-              <View style={styles.typeSelectorContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.typeButton,
-                    editedType === "in" && styles.typeButtonSelected,
-                  ]}
-                  onPress={() => setEditedType("in")}
-                >
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      editedType === "in" && styles.typeButtonTextSelected,
-                    ]}
-                  >
-                    IN
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.typeButton,
-                    editedType === "out" && styles.typeButtonSelected,
-                  ]}
-                  onPress={() => setEditedType("out")}
-                >
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      editedType === "out" && styles.typeButtonTextSelected,
-                    ]}
-                  >
-                    OUT
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <Button title="Save" onPress={handleUpdatePunch} />
-              <Button
-                title="Cancel"
-                onPress={() => {
-                  setIsEditModalVisible(false);
-                  setEditingPunch(null);
-                }}
-              />
             </View>
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -540,6 +554,10 @@ const styles = StyleSheet.create({
   },
   keyboardAvoidingView: {
     flex: 1,
+  },
+  modalScrollContentContainer: {
+    flexGrow: 1,
+    justifyContent: "center",
   },
   listHeader: {
     backgroundColor: "#f8f9fa",
@@ -631,10 +649,10 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   centeredView: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 22,
+    // flex: 1,
+    // justifyContent: "center",
+    // alignItems: "center",
+    // marginTop: 22,
   },
   modalView: {
     margin: 20,

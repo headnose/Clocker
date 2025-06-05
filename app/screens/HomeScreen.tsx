@@ -7,7 +7,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from "react-native";
 import {
   Punch,
@@ -28,15 +27,6 @@ const colors = {
     clockOut: "#ff4444",
     shadow: "#000000",
   },
-  light: {
-    background: "#ffffff",
-    card: "#f8f9fa",
-    text: "#000000",
-    subtext: "#666666",
-    clockIn: "#4CAF50",
-    clockOut: "#ff4444",
-    shadow: "#000000",
-  },
 };
 
 export default function HomeScreen() {
@@ -44,8 +34,7 @@ export default function HomeScreen() {
   const [hoursWorked, setHoursWorked] = useState<number>(0);
   const [punches, setPunches] = useState<Punch[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const colorScheme = useColorScheme();
-  const theme = colors[colorScheme === "dark" ? "dark" : "light"];
+  const theme = colors.dark;
 
   useEffect(() => {
     // Load the initial state when component mounts
@@ -138,7 +127,7 @@ export default function HomeScreen() {
         ]}
         onPress={handleClockPress}
       >
-        <Text style={[styles.buttonText, { color: theme.text }]}>
+        <Text style={[styles.buttonText]}>
           {isClockedIn ? "Clock Out" : "Clock In"}
         </Text>
       </TouchableOpacity>
@@ -174,6 +163,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     textAlign: "center",
+    color: "#ffffff",
   },
   status: {
     marginTop: 20,
